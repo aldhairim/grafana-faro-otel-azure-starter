@@ -69,8 +69,8 @@ The app sends `X-User-Id: <same id>` on every API call; the backend copies it to
 `enduser.id` on the span — so the **RUM user and the trace user match**.
 
 **CORS gotcha:** the browser will only *send* `traceparent`/`X-User-Id` cross-origin if the
-backend's CORS preflight allows them. Locally, `func` reflects requested headers; when
-deployed, add your frontend origin to the Function app's CORS allow-list.
+backend's CORS preflight allows them — add your frontend origin to the Function app's CORS
+allow-list.
 
 ---
 
@@ -95,11 +95,9 @@ Kept to app-only flows (no external services to provision):
    `OTEL_RESOURCE_ATTRIBUTES`. Set it via the distro's own config lambda
    (`UseGrafana(cfg => cfg.DeploymentEnvironment = ...)`).
 3. **CORS preflight** must allow `traceparent` and `X-User-Id`, or cross-origin propagation
-   silently drops them.
-4. **`func start` needs `AzureWebJobsStorage`** — run Azurite (or point it at a storage
-   account); the example uses `UseDevelopmentStorage=true`.
-5. **.NET 10 on Linux** deploys only to the **Flex Consumption** plan (Linux Consumption
-   can't host it) — relevant only when you move off localhost.
+   silently drops them — add the frontend origin to the Function app's CORS allow-list.
+4. **.NET 10 on Linux** runs only on the **Flex Consumption** plan (Linux Consumption can't
+   host it).
 
 ## When you'd reach for the vanilla OpenTelemetry SDK instead
 

@@ -1,16 +1,15 @@
 # Grafana Cloud RUM + APM starter — Faro + OpenTelemetry on Azure Functions
 
 A small, self-contained example that shows **end-to-end observability** for a
-browser → serverless-backend app using **Grafana Cloud**, with **no vendor agent** and
-**no Application Insights**:
+browser → Azure Functions app using **Grafana Cloud**, with **no vendor agent**:
 
 - **Frontend RUM** with **Grafana Faro** — JS errors, sessions, Web Vitals, page performance
 - **Backend APM** with the **Grafana OpenTelemetry Distribution for .NET** — traces, logs, metrics
 - **Browser → backend distributed tracing** via W3C `traceparent` propagation
 - **User correlation** across the browser session and the backend span
 
-This first pass is intentionally **application-only** — no cloud infrastructure to stand up.
-Everything runs locally against your Grafana Cloud stack and tears down cleanly.
+This README focuses on **how the RUM and APM are instrumented** and **how to get the
+Grafana Cloud credentials** — not on how to run a React app or an Azure Function.
 
 ```
 Browser (React + Faro)                         Grafana Cloud
@@ -34,10 +33,10 @@ the backend span.
 |---|---|
 | `frontend/` | React + TypeScript + Vite app, Faro-instrumented |
 | `backend/` | .NET 10 Azure Functions (isolated worker), Grafana OTel distro |
-| `gen-session.mjs` | Playwright traffic generator (RUM + backend load) |
-| `docs/JOURNEY.md` | step-by-step build log + the gotchas worth knowing |
+| `gen-session.mjs` | Playwright script that drives the flows to populate telemetry |
+| `docs/JOURNEY.md` | build log + the gotchas worth knowing |
 
-### Backend endpoints (all anonymous, app-only — no external dependencies)
+### Backend endpoints
 | Route | Flow | Telemetry it shows |
 |---|---|---|
 | `GET /api/portfolio` | View Portfolio | server span + `valuation.compute` child span |
@@ -45,89 +44,132 @@ the backend span.
 | `POST /api/orders` | Place Order | server span + `risk.check` child span + `portfolio.orders.placed` metric |
 | `POST /api/orders?fail=true` | Force a failure | error span + error log (for the "what broke" story) |
 
-## Prerequisites
+---
 
-- **Node 18+**
-- **.NET 10 SDK**
-- **Azure Functions Core Tools v4** (`func`)
-- A **Grafana Cloud** stack (free tier is fine) with **Frontend Observability** available
-- For local backend runs: **Azurite** (or any `AzureWebJobsStorage`) for the Functions host
+## How the frontend RUM is instrumented (Faro)
 
-## 1. Get your Grafana Cloud credentials
+All of it lives in [`frontend/src/faro.ts`](frontend/src/faro.ts). One `initializeFaro` call
+wires the whole RUM story:
 
-**Faro (frontend):** Grafana Cloud → **Frontend Observability** → create a web app →
-copy the **collector URL** (looks like `https://faro-collector-<zone>.grafana.net/collect/<app-key>`).
+```ts
+const faro = initializeFaro({
+  url,                                   // your Faro collector URL (see credentials below)
+  app: { name: 'portfolio-web', version: '1.0.0', environment: 'development' },
+  instrumentations: [
+    ...getWebInstrumentations(),         // JS errors, sessions, Web Vitals, page-load perf
+    new TracingInstrumentation({         // injects W3C traceparent on API fetches
+      instrumentationOptions: {
+        propagateTraceHeaderCorsUrls: [new RegExp(apiUrl)],
+      },
+    }),
+    new ReactIntegration(),              // component/render context on errors
+  ],
+});
 
-**OTLP (backend):** Grafana Cloud → **Connections / OTLP** (or your stack's OTel page) →
-note the **OTLP endpoint** and create a token. The backend auth header is
-`Authorization=Basic <base64>` where `<base64>` encodes `"<instanceID>:<token>"`:
+// Simulated signed-in user -> attached to every session and event
+faro.api.setUser({ id: 'user-1234', username: 'user1234@example.com', attributes: { region: 'us-east' } });
+```
 
+- **`getWebInstrumentations()`** is what captures errors, sessions, and Web Vitals — no extra code.
+- **`TracingInstrumentation` + `propagateTraceHeaderCorsUrls`** is what makes browser→backend
+  tracing work: it adds the `traceparent` header to fetches whose URL matches the API.
+- **`setUser`** is the browser half of user correlation. The fetch helper
+  ([`frontend/src/api.ts`](frontend/src/api.ts)) sends the same id as `X-User-Id` on every call.
+
+Faro is initialized **before** the app renders (see `frontend/src/main.tsx`) so it captures
+the full session.
+
+## How the backend APM is instrumented (Grafana OTel distribution)
+
+Two files: [`backend/Program.cs`](backend/Program.cs) (wiring) and
+[`backend/Telemetry.cs`](backend/Telemetry.cs) (the span + metric).
+
+**Wiring — one `.UseGrafana()` covers traces, logs and metrics:**
+```csharp
+var otel = services.AddOpenTelemetry();
+otel.UseGrafana(cfg => cfg.DeploymentEnvironment = "development"); // exporter + instrumentations + logs
+otel.WithTracing(t => t
+    .AddSource(Telemetry.ActivitySourceName)   // our server + child spans
+    .SetSampler(new AlwaysOnSampler()));       // see note below
+otel.WithMetrics(m => m.AddMeter(Telemetry.MeterName));            // custom app metrics
+```
+
+The distro reads standard `OTEL_*` settings for the endpoint/auth, so there is no exporter
+plumbing to write.
+
+**The one thing isolated Functions need — a manual server span.** The isolated worker does
+**not** emit a request span for the HTTP trigger, so `Telemetry.cs` extracts the incoming
+`traceparent` and starts one itself. This is also what the browser trace attaches to:
+```csharp
+var parent = Propagator.Extract(default, req.Headers, (h, k) => h.TryGetValues(k, out var v) ? v.ToArray() : []);
+using var span = parent.ActivityContext.IsValid()
+    ? Source.StartActivity(name, ActivityKind.Server, parent.ActivityContext)
+    : Source.StartActivity(name, ActivityKind.Server);
+
+// backend half of user correlation
+var userId = req.Headers.TryGetValues("X-User-Id", out var uv) ? uv.FirstOrDefault() : null;
+if (!string.IsNullOrEmpty(userId)) span?.SetTag("enduser.id", userId);
+```
+`AlwaysOnSampler` is required: the host's ambient activity is non-recorded, so the default
+ParentBased sampler would drop our span for requests that arrive without a `traceparent`.
+
+Child spans (`valuation.compute`, `pricing.lookup`, `risk.check`) and a custom counter
+(`portfolio.orders.placed`) use the same source/meter, so traces show real structure and
+metrics carry app-level signal.
+
+## Browser → backend tracing & user correlation
+
+- **Trace:** Faro adds `traceparent` on the fetch → `Telemetry.Handle` adopts it → the
+  browser span and the Function span (plus child spans) land in **one trace**.
+- **User:** Faro `setUser(user-1234)` → sent as `X-User-Id` → copied to `enduser.id` on the
+  span, so the RUM session and the backend trace show the **same identity**.
+- **CORS:** the browser only *sends* `traceparent`/`X-User-Id` cross-origin if the Function
+  app allows them. Add your frontend origin to the Function app's **CORS** allow-list.
+
+---
+
+## Getting your Grafana Cloud credentials
+
+### Faro collector URL (frontend RUM)
+Grafana Cloud → **Frontend Observability** → create/select a web app → **Web SDK**. Copy the
+**collector URL**:
+```
+https://faro-collector-<zone>.grafana.net/collect/<app-key>
+```
+Set it as the frontend build variable `VITE_FARO_URL` (see `frontend/.env.example`).
+
+### OTLP endpoint + token (backend APM)
+Grafana Cloud → **Connections → OTLP / OpenTelemetry** (or your stack's OTel page). You need:
+- the **OTLP endpoint** — `https://otlp-gateway-<zone>.grafana.net/otlp`
+- your **instance ID** (a number) and an **API token** (create one with metrics/logs/traces write scope)
+
+The backend authenticates with an HTTP Basic header whose value is
+`base64("<instanceID>:<token>")`:
 ```bash
 printf '%s' '<instanceID>:<token>' | base64
 ```
-
-## 2. Configure
-
-**Backend** — copy the example and fill in your OTLP values:
-
-```bash
-cp backend/local.settings.json.example backend/local.settings.json
-# edit OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_HEADERS
+Set these as the Function app's **application settings** (the keys are listed in
+`backend/local.settings.json.example`):
+```
+OTEL_EXPORTER_OTLP_ENDPOINT = https://otlp-gateway-<zone>.grafana.net/otlp
+OTEL_EXPORTER_OTLP_PROTOCOL = http/protobuf
+OTEL_EXPORTER_OTLP_HEADERS  = Authorization=Basic <base64 from above>
+OTEL_SERVICE_NAME           = portfolio-api
 ```
 
-**Frontend** — copy the example and fill in your Faro URL:
+> Keep tokens out of source control — `.env` and `local.settings.json` are git-ignored; only
+> the `*.example` templates are committed.
 
-```bash
-cp frontend/.env.example frontend/.env
-# edit VITE_FARO_URL (and VITE_API_URL if not localhost)
-```
+---
 
-> `local.settings.json` and `.env` are git-ignored — never commit real credentials.
+## See it in Grafana Cloud
 
-## 3. Run locally
-
-```bash
-# terminal 1 — backend (http://localhost:7071)
-cd backend
-func start
-
-# terminal 2 — frontend (http://localhost:5173)
-cd frontend
-npm install
-npm run dev
-```
-
-Open http://localhost:5173, sign-in is simulated, click the flow buttons, and try the
-error buttons.
-
-## 4. Generate demo traffic (optional)
-
-```bash
-npm install                       # root — installs Playwright
-npx playwright install chromium
-SESSIONS=8 node gen-session.mjs   # drives the local site through every flow
-```
-
-## 5. See it in Grafana Cloud
-
-- **Frontend Observability** → your app: sessions, Web Vitals, and the JS errors with stack traces.
+- **Frontend Observability** → your app: sessions, Web Vitals, and JS errors with stack traces.
 - **Explore → Tempo**: search `{ name = "GET /portfolio" }` (or `POST /orders`). Each trace has the
   Faro browser span as the **root** and the Function server + child spans beneath it.
 - **Explore → Loki**: the app logs, each carrying `trace_id`/`span_id` that link back to the trace.
 - **Explore → Mimir/Prometheus**: `portfolio_orders_placed_total` plus the distro's runtime/HTTP metrics.
 - **User correlation**: the browser session's user id (e.g. `user-1234`) matches `enduser.id` on the span.
-
-## Deploying (later / optional)
-
-This starter is meant to run locally, but the backend deploys to Azure Functions like any
-isolated .NET app (`func azure functionapp publish <app>`), and the frontend is static
-(`npm run build` → any static host). One note if you deploy the backend to Linux: **.NET 10
-requires the Flex Consumption plan** (Linux Consumption doesn't support it). Set the same
-`OTEL_*` values as application settings, and add your frontend origin to the Function app's
-CORS allow-list so the browser may send `traceparent`/`X-User-Id`.
-
-Cloud-infrastructure monitoring (Key Vault, SQL, Cosmos, gateways, WAF, etc.) is deliberately
-out of scope for this first pass.
 
 ## Why the Grafana distribution (not the vanilla OTel SDK)?
 
@@ -135,4 +177,4 @@ The distro (`Grafana.OpenTelemetry`) is a single `.UseGrafana()` call that wires
 exporter and a sensible set of instrumentations for traces, metrics **and** logs from
 standard `OTEL_*` env vars — a much faster path to a working frontend+backend setup than
 hand-assembling exporters and processors. You can still drop to the raw SDK later; see
-`docs/JOURNEY.md`.
+[`docs/JOURNEY.md`](docs/JOURNEY.md).
