@@ -9,7 +9,7 @@ browser → Azure Functions app using **Grafana Cloud**, with **no vendor agent*
 - **User correlation** across the browser session and the backend span
 
 This README focuses on **how the RUM and APM are instrumented** and **how to get the
-Grafana Cloud credentials** — not on how to run a React app or an Azure Function.
+Grafana Cloud credentials**.
 
 ```
 Browser (React + Faro)                         Grafana Cloud
@@ -113,6 +113,13 @@ if (!string.IsNullOrEmpty(userId)) span?.SetTag("enduser.id", userId);
 `AlwaysOnSampler` is required: the host's ambient activity is non-recorded, so the default
 ParentBased sampler would drop our span for requests that arrive without a `traceparent`.
 
+> This ~30-line span is the *only* non-standard code in the project, and it exists solely
+> because the isolated worker doesn't auto-instrument the HTTP trigger. If you run Functions
+> on the ASP.NET Core integration model instead, the distro's ASP.NET Core instrumentation
+> emits the server span for you and this shim goes away — at the cost of the ASP.NET Core
+> shared runtime and a different Function signature. We keep the plain isolated model here
+> because it's the default for new .NET Functions and keeps the dependency surface minimal.
+
 Child spans (`valuation.compute`, `pricing.lookup`, `risk.check`) and a custom counter
 (`portfolio.orders.placed`) use the same source/meter, so traces show real structure and
 metrics carry app-level signal.
@@ -165,6 +172,8 @@ OTEL_SERVICE_NAME           = portfolio-api
 ## See it in Grafana Cloud
 
 - **Frontend Observability** → your app: sessions, Web Vitals, and JS errors with stack traces.
+- **Application Observability** → `portfolio-api`: RED metrics (rate/errors/duration), operations,
+  and the service map — populated automatically from the OTLP traces/metrics the distro sends.
 - **Explore → Tempo**: search `{ name = "GET /portfolio" }` (or `POST /orders`). Each trace has the
   Faro browser span as the **root** and the Function server + child spans beneath it.
 - **Explore → Loki**: the app logs, each carrying `trace_id`/`span_id` that link back to the trace.
