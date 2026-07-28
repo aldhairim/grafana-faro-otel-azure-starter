@@ -1,0 +1,12 @@
+{
+  "name": "grafana-faro-otel-azure-starter",
+  "private": true,
+  "description": "Traffic generator for the RUM + APM demo (see gen-session.mjs)",
+  "type": "module",
+  "scripts": {
+    "gen": "node gen-session.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.0"
+  }
+}

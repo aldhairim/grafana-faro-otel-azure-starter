@@ -1,0 +1,18 @@
+# .NET
+bin/
+obj/
+backend/local.settings.json
+
+# Node / frontend
+node_modules/
+frontend/dist/
+.env
+*.local
+
+# Playwright
+test-results/
+playwright-report/
+
+# misc
+.DS_Store
+*.zip

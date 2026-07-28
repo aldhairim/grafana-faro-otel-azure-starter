@@ -1,0 +1,17 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    "OTEL_SERVICE_NAME": "portfolio-api",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "https://otlp-gateway-<zone>.grafana.net/otlp",
+    "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic <base64 of \"<instanceID>:<token>\">",
+
+    "DEPLOYMENT_ENVIRONMENT": "development"
+  },
+  "Host": {
+    "CORS": "http://localhost:5173"
+  }
+}
