@@ -35,6 +35,8 @@ the backend span.
 | `backend/` | .NET 10 Azure Functions (isolated worker), Grafana OTel distro |
 | `gen-session.mjs` | Playwright script that drives the flows to populate telemetry |
 | `docs/JOURNEY.md` | build log + the gotchas worth knowing |
+| `docs/frontend-migration.md` | how to add Faro to an **existing** React app |
+| `docs/dotnet-migration.md` | how to add the Grafana OTel distro to an **existing** .NET 10 Function |
 
 ### Backend endpoints
 | Route | Flow | Telemetry it shows |
@@ -132,6 +134,12 @@ metrics carry app-level signal.
   span, so the RUM session and the backend trace show the **same identity**.
 - **CORS:** the browser only *sends* `traceparent`/`X-User-Id` cross-origin if the Function
   app allows them. Add your frontend origin to the Function app's **CORS** allow-list.
+
+## Applying this to your own app
+
+The same wiring drops into an app you already have — step-by-step task guides:
+- **[docs/frontend-migration.md](docs/frontend-migration.md)** — add Faro to an existing React app.
+- **[docs/dotnet-migration.md](docs/dotnet-migration.md)** — add the Grafana OTel distro to an existing .NET 10 Function.
 
 ---
 
