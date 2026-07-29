@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 510" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrowO" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#F46800"/>
+    </marker>
+    <marker id="arrowG" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8B949E"/>
+    </marker>
+  </defs>
+
+  <!-- ===== Zone panels ===== -->
+  <g>
+    <rect x="24"  y="70" width="250" height="300" rx="14" fill="#0D1117" stroke="#30363D" stroke-width="1.5"/>
+    <rect x="425" y="70" width="300" height="300" rx="14" fill="#0D1117" stroke="#30363D" stroke-width="1.5"/>
+    <rect x="876" y="70" width="300" height="300" rx="14" fill="#0D1117" stroke="#30363D" stroke-width="1.5"/>
+  </g>
+
+  <!-- ===== Zone chips ===== -->
+  <g font-size="11" font-weight="700" letter-spacing="1.2" text-anchor="middle">
+    <rect x="40"  y="86" width="78"  height="22" rx="11" fill="#6E7681"/>
+    <text x="79"  y="101" fill="#FFFFFF">CLIENT</text>
+    <rect x="441" y="86" width="72"  height="22" rx="11" fill="#1F6FEB"/>
+    <text x="477" y="101" fill="#FFFFFF">AZURE</text>
+    <rect x="892" y="86" width="150" height="22" rx="11" fill="#F46800"/>
+    <text x="967" y="101" fill="#FFFFFF">GRAFANA CLOUD</text>
+  </g>
+
+  <!-- ===== Nodes ===== -->
+  <!-- Browser -->
+  <g>
+    <rect x="44" y="150" width="210" height="180" rx="10" fill="#161B22" stroke="#30363D" stroke-width="1.5"/>
+    <rect x="60" y="168" width="10" height="10" rx="2" fill="#6E7681"/>
+    <text x="80" y="177" fill="#E6EDF3" font-size="16" font-weight="700">Browser</text>
+    <text x="60" y="200" fill="#8B949E" font-size="12.5">React + Faro Web SDK</text>
+    <line x1="60" y1="216" x2="238" y2="216" stroke="#30363D" stroke-width="1"/>
+    <text x="60" y="242" fill="#8B949E" font-size="12.5">RUM captured client-side:</text>
+    <text x="60" y="264" fill="#C9D1D9" font-size="12.5">JS errors · sessions</text>
+    <text x="60" y="284" fill="#C9D1D9" font-size="12.5">Web Vitals · page perf</text>
+  </g>
+
+  <!-- Azure Functions -->
+  <g>
+    <rect x="445" y="150" width="260" height="180" rx="10" fill="#161B22" stroke="#30363D" stroke-width="1.5"/>
+    <rect x="461" y="168" width="10" height="10" rx="2" fill="#1F6FEB"/>
+    <text x="481" y="177" fill="#E6EDF3" font-size="16" font-weight="700">Azure Functions</text>
+    <text x="461" y="200" fill="#8B949E" font-size="12.5">.NET 10 · isolated worker</text>
+    <line x1="461" y1="216" x2="689" y2="216" stroke="#30363D" stroke-width="1"/>
+    <text x="461" y="242" fill="#C9D1D9" font-size="12.5">Grafana OTel distro · <tspan fill="#F46800" font-weight="700">.UseGrafana()</tspan></text>
+    <text x="461" y="264" fill="#C9D1D9" font-size="12.5">server span + child spans</text>
+    <text x="461" y="284" fill="#C9D1D9" font-size="12.5">traces · logs · metrics</text>
+  </g>
+
+  <!-- Grafana Cloud nodes -->
+  <g>
+    <rect x="896" y="140" width="260" height="86" rx="10" fill="#161B22" stroke="#30363D" stroke-width="1.5"/>
+    <text x="916" y="180" fill="#E6EDF3" font-size="15" font-weight="700">Faro Collector</text>
+    <text x="916" y="203" fill="#8B949E" font-size="12.5">receives RUM</text>
+
+    <rect x="896" y="250" width="260" height="96" rx="10" fill="#161B22" stroke="#30363D" stroke-width="1.5"/>
+    <text x="916" y="288" fill="#E6EDF3" font-size="15" font-weight="700">Tempo / Loki / Mimir</text>
+    <text x="916" y="311" fill="#8B949E" font-size="12.5">traces · logs · metrics</text>
+    <text x="916" y="330" fill="#8B949E" font-size="12.5">via OTLP</text>
+  </g>
+
+  <!-- ===== Arrows ===== -->
+  <!-- Browser -> Azure Functions (primary) -->
+  <line x1="254" y1="250" x2="443" y2="250" stroke="#F46800" stroke-width="2.5" marker-end="url(#arrowO)"/>
+  <g text-anchor="middle">
+    <rect x="264" y="222" width="170" height="38" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1"/>
+    <text x="349" y="238" fill="#C9D1D9" font-size="12">fetch  ·  traceparent</text>
+    <text x="349" y="253" fill="#8B949E" font-size="11.5">+ X-User-Id</text>
+  </g>
+
+  <!-- Browser -> Faro Collector (RUM direct), elbow over the top -->
+  <polyline points="149,150 149,44 1026,44 1026,140" fill="none" stroke="#8B949E" stroke-width="2" stroke-dasharray="1 0" marker-end="url(#arrowG)"/>
+  <g text-anchor="middle">
+    <rect x="520" y="27" width="120" height="24" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1"/>
+    <text x="580" y="43" fill="#C9D1D9" font-size="12">RUM (direct)</text>
+  </g>
+
+  <!-- Azure Functions -> Tempo/Loki/Mimir (OTLP direct) -->
+  <line x1="705" y1="298" x2="894" y2="298" stroke="#F46800" stroke-width="2.5" marker-end="url(#arrowO)"/>
+  <g text-anchor="middle">
+    <rect x="726" y="272" width="148" height="24" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1"/>
+    <text x="800" y="288" fill="#C9D1D9" font-size="12">OTLP (direct)</text>
+  </g>
+
+  <!-- ===== Callouts ===== -->
+  <g>
+    <rect x="120" y="412" width="470" height="60" rx="12" fill="#161B22" stroke="#F46800" stroke-width="1.3" stroke-opacity="0.55"/>
+    <circle cx="150" cy="442" r="6" fill="#F46800"/>
+    <text x="172" y="438" fill="#E6EDF3" font-size="13" font-weight="600">Same traceparent</text>
+    <text x="172" y="457" fill="#8B949E" font-size="12.5">one distributed trace across browser + backend</text>
+
+    <rect x="612" y="412" width="470" height="60" rx="12" fill="#161B22" stroke="#F46800" stroke-width="1.3" stroke-opacity="0.55"/>
+    <circle cx="642" cy="442" r="6" fill="#F46800"/>
+    <text x="664" y="438" fill="#E6EDF3" font-size="13" font-weight="600">Same user</text>
+    <text x="664" y="457" fill="#8B949E" font-size="12.5">Faro setUser  ↔  enduser.id on the span</text>
+  </g>
+</svg>

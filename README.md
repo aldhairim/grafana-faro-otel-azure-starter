@@ -11,7 +11,7 @@ browser → Azure Functions app using **Grafana Cloud**, with **no vendor agent*
 This README focuses on **how the RUM and APM are instrumented** and **how to get the
 Grafana Cloud credentials**.
 
-![Architecture: a browser (React + Faro) sends RUM directly to the Grafana Cloud Faro Collector and calls an Azure Functions (.NET 10 isolated) backend with a traceparent and X-User-Id header; the backend uses the Grafana OpenTelemetry Distribution (.UseGrafana()) to send traces, logs and metrics directly to Tempo/Loki/Mimir over OTLP. The shared traceparent makes one distributed trace across browser and backend, and the shared user id ties Faro's setUser to the span's enduser.id.](docs/architecture.png)
+![Architecture: a browser (React + Faro) sends RUM directly to the Grafana Cloud Faro Collector and calls an Azure Functions (.NET 10 isolated) backend with a traceparent and X-User-Id header; the backend uses the Grafana OpenTelemetry Distribution (.UseGrafana()) to send traces, logs and metrics directly to Tempo/Loki/Mimir over OTLP. The shared traceparent makes one distributed trace across browser and backend, and the shared user id ties Faro's setUser to the span's enduser.id.](docs/architecture.svg)
 
 Because Faro injects the same `traceparent` the backend continues, a single click shows up
 as **one trace** spanning the browser and the Function; because the browser sends
